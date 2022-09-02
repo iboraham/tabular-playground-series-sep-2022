@@ -1,3 +1,5 @@
+import operator
+
 import catboost as cb
 import lightgbm as lgbm
 import numpy as np
@@ -62,8 +64,11 @@ def apply_random_forest(X, y, X_val, y_val):
         y_pred = rf.predict(X_val)
         return smape(y_val, y_pred)
 
-    study = optuna.create_study(direction="minimize")
-    study.optimize(objective, n_trials=100, n_jobs=-1, show_progress_bar=True)
+    direction = "minimize"
+    early_stopping = EarlyStoppingCallback(10, direction=direction)
+    study = optuna.create_study(direction=direction)
+    study.optimize(objective, n_trials=100, n_jobs=-1,
+                   show_progress_bar=True, callbacks=[early_stopping])
     rf = RandomForestRegressor(**study.best_params)
     rf.fit(X, y)
     return rf
@@ -99,8 +104,11 @@ def apply_xgboost(X, y, X_val, y_val):
         y_pred = xgb.predict(X_val)
         return smape(y_val, y_pred)
 
-    study = optuna.create_study(direction="minimize")
-    study.optimize(objective, n_trials=100, n_jobs=-1)
+    direction = "minimize"
+    early_stopping = EarlyStoppingCallback(10, direction=direction)
+    study = optuna.create_study(direction=direction)
+    study.optimize(objective, n_trials=100, n_jobs=-1,
+                   show_progress_bar=True, callbacks=[early_stopping])
     xgb = xgb.XGBRegressor(**study.best_params)
     xgb.fit(X, y)
     return xgb
@@ -340,3 +348,32 @@ def apply_lstm(X, y):
     lstm.compile(loss="mse", optimizer="adam")
     lstm.fit(X, y, epochs=10, verbose=0)
     return lstm
+
+
+class EarlyStoppingCallback(object):
+    """Early stopping callback for Optuna."""
+
+    def __init__(self, early_stopping_rounds: int, direction: str = "minimize") -> None:
+        self.early_stopping_rounds = early_stopping_rounds
+
+        self._iter = 0
+
+        if direction == "minimize":
+            self._operator = operator.lt
+            self._score = np.inf
+        elif direction == "maximize":
+            self._operator = operator.gt
+            self._score = -np.inf
+        else:
+            ValueError(f"invalid direction: {direction}")
+
+    def __call__(self, study: optuna.Study, trial: optuna.Trial) -> None:
+        """Do early stopping."""
+        if self._operator(study.best_value, self._score):
+            self._iter = 0
+            self._score = study.best_value
+        else:
+            self._iter += 1
+
+        if self._iter >= self.early_stopping_rounds:
+            study.stop()
