@@ -1,1 +1,11 @@
 pandas
+scikit-learn
+tensorflow
+catboost
+xgboost
+lightgbm
+optuna
+pyyaml
+numpy
+holidays
+pycountry
