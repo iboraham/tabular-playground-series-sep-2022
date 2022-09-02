@@ -2,11 +2,12 @@ import logging
 
 import pandas as pd
 from sklearn.metrics import r2_score
+from models import smape
 
 
 def ensemble_models(X_val, y_val, data, **kwargs):
     """
-    Calculate each model's predictions and ensemble them using weighted average where weights are the model's R^2 scores
+    Calculate each model's predictions and ensemble them using weighted average where weights are the model's smape scores
 
     Args:
         data (pd.DataFrame): The data
@@ -21,16 +22,16 @@ def ensemble_models(X_val, y_val, data, **kwargs):
         model_name: model.predict(data) for model_name, model in kwargs.items()
     }
 
-    # Calculate each model's R^2 score
-    r2_scores = {
-        model_name: r2_score(y_val, predictions[model_name])
+    # Calculate each model's SMAPE score
+    smape_scores = {
+        model_name: smape(y_val, predictions[model_name])
         for model_name in predictions
     }
 
     # Calculate the weights
     weights = {
-        model_name: r2_scores[model_name] / sum(r2_scores.values())
-        for model_name in r2_scores
+        model_name: (1/smape_scores[model_name]) / sum(smape_scores.values())
+        for model_name in smape_scores
     }
 
     # Calculate the weighted average
@@ -38,9 +39,9 @@ def ensemble_models(X_val, y_val, data, **kwargs):
         [predictions[model_name] * weights[model_name]
             for model_name in predictions]
     )
-    # Calculate r2 score of the ensemble
+    # Calculate SMAPE score of the ensemble
     logging.info(
-        f"Ensemble R^2 score: {r2_score(y_val, ensemble_val)}")
+        f"Ensemble SMAPE score: {smape(y_val, ensemble_val)}")
 
     ensemble = sum(
         [predictions_data[model_name] * weights[model_name]
